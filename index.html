@@ -239,14 +239,24 @@
       var objeto3D = evento.detail.model;
       var caja = new THREE.Box3().setFromObject(objeto3D);
       var tamano = new THREE.Vector3();
+      var centro = new THREE.Vector3();
       caja.getSize(tamano);
+      caja.getCenter(centro);
+
+      // Algunos modelos glTF no tienen su "pivote" (punto 0,0,0 local)
+      // en el centro de su propia figura, sino corrido hacia un lado.
+      // Por eso, antes de escalar, recentramos el modelo restándole
+      // el centro de su caja delimitadora: así el pivote queda en el
+      // medio visual del pato, y al rotar/escalar lo hace sobre su
+      // propio centro en vez de "irse" hacia un lado.
+      objeto3D.position.sub(centro);
 
       var dimensionMayor = Math.max(tamano.x, tamano.y, tamano.z);
 
       if (dimensionMayor > 0 && isFinite(dimensionMayor)) {
-        // 1.1 = un poco más ancho que el marcador. Súbelo o bájalo
-        // si quieres el pato más grande o más chico.
-        var tamanoDeseado = 1.1;
+        // 0.6 = bastante más pequeño que el ancho del marcador.
+        // Súbelo o bájalo si quieres el pato más grande o más chico.
+        var tamanoDeseado = 0.6;
         var factor = tamanoDeseado / dimensionMayor;
         entidadPato.setAttribute('scale', factor + ' ' + factor + ' ' + factor);
       }
