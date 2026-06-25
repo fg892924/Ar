@@ -75,13 +75,19 @@
   #instrucciones .nota { font-size: 12px; color: #9FB3C8; }
   #instrucciones a { color: #39D5C8; text-decoration: underline; }
 
-  /* ---------- Indicador de estado del marcador (superior) ---------- */
-  #estado-marcador {
+  /* ---------- Indicadores de estado (superior) ---------- */
+  #panel-estado {
     position: fixed;
     top: calc(14px + env(safe-area-inset-top));
     left: 50%;
     transform: translateX(-50%);
     z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+  #panel-estado span {
     background: rgba(11, 19, 32, 0.82);
     color: #FFFFFF;
     padding: 8px 16px;
@@ -128,8 +134,11 @@
     </div>
   </div>
 
-  <!-- Indicador de si el marcador Hiro está siendo detectado o no -->
-  <div id="estado-marcador">🔍 Buscando el marcador Hiro…</div>
+  <!-- Indicadores: si se detecta el marcador, y si el modelo 3D cargó bien -->
+  <div id="panel-estado">
+    <span id="estado-marcador">🔍 Buscando el marcador Hiro…</span>
+    <span id="estado-modelo">📦 Cargando el modelo 3D…</span>
+  </div>
 
   <!-- Instrucciones fijas para el usuario -->
   <div id="instrucciones">
@@ -157,26 +166,19 @@
     arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
   >
 
-    <!-- a-assets: aquí se precargan los recursos (en este caso, el
-         modelo 3D) para que A-Frame los tenga listos antes de usarlos -->
-    <a-assets>
-      <a-asset-item
-        id="modelo-pato"
-        src="https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Duck/glTF-Binary/Duck.glb">
-      </a-asset-item>
-    </a-assets>
-
     <!-- a-marker: define QUÉ imagen debe ver la cámara para activar
          el contenido. preset="hiro" usa el marcador estándar de AR.js -->
     <a-marker preset="hiro" id="marcador-hiro">
 
       <!-- El modelo 3D, posicionado encima del marcador.
-           AJUSTA "scale" si el pato se ve muy grande o muy chico. -->
+           No fijamos "scale" aquí a mano: el script de abajo mide el
+           modelo apenas carga y calcula automáticamente el tamaño
+           correcto, sin importar en qué unidades venga el archivo. -->
       <a-entity
-        gltf-model="#modelo-pato"
+        id="entidad-pato"
+        gltf-model="url(https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Duck/glTF-Binary/Duck.glb)"
         position="0 0 0"
         rotation="0 0 0"
-        scale="0.01 0.01 0.01"
         animation="property: rotation; from: 0 0 0; to: 0 360 0; loop: true; dur: 8000; easing: linear">
       </a-entity>
 
@@ -192,8 +194,10 @@
     var escena = document.querySelector('#escena');
     var pantallaCarga = document.querySelector('#pantalla-carga');
     var estadoMarcador = document.querySelector('#estado-marcador');
+    var estadoModelo = document.querySelector('#estado-modelo');
     var errorCamara = document.querySelector('#error-camara');
     var marcador = document.querySelector('#marcador-hiro');
+    var entidadPato = document.querySelector('#entidad-pato');
 
     function ocultarPantallaCarga() {
       pantallaCarga.classList.add('oculto');
@@ -219,6 +223,43 @@
     });
     marcador.addEventListener('markerLost', function () {
       estadoMarcador.textContent = '🔍 Buscando el marcador Hiro…';
+    });
+
+    // ----------------------------------------------------------------
+    // Auto-escala del modelo 3D
+    // Distintos archivos glTF vienen modelados en distintas "unidades"
+    // (algunos en metros, otros en centímetros, etc). En vez de adivinar
+    // un número de escala fijo, medimos el tamaño real del modelo en
+    // cuanto termina de cargar y calculamos la escala para que siempre
+    // ocupe, más o menos, el ancho del marcador (ni gigante ni mínusculo).
+    // ----------------------------------------------------------------
+    entidadPato.addEventListener('model-loaded', function (evento) {
+      estadoModelo.textContent = '✅ Modelo 3D cargado';
+
+      var objeto3D = evento.detail.model;
+      var caja = new THREE.Box3().setFromObject(objeto3D);
+      var tamano = new THREE.Vector3();
+      caja.getSize(tamano);
+
+      var dimensionMayor = Math.max(tamano.x, tamano.y, tamano.z);
+
+      if (dimensionMayor > 0 && isFinite(dimensionMayor)) {
+        // 1.1 = un poco más ancho que el marcador. Súbelo o bájalo
+        // si quieres el pato más grande o más chico.
+        var tamanoDeseado = 1.1;
+        var factor = tamanoDeseado / dimensionMayor;
+        entidadPato.setAttribute('scale', factor + ' ' + factor + ' ' + factor);
+      }
+
+      setTimeout(function () {
+        estadoModelo.style.display = 'none';
+      }, 3000);
+    });
+
+    // Si el modelo no carga (URL caída, sin internet, archivo dañado, etc.)
+    entidadPato.addEventListener('model-error', function (evento) {
+      estadoModelo.textContent = '❌ No se pudo cargar el modelo 3D';
+      console.error('Error al cargar el modelo glTF:', evento.detail);
     });
   </script>
 
